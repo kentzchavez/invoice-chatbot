@@ -28,7 +28,7 @@ class InvoiceApp:
         """Create the file upload section."""
         st.markdown('<div class="upload-box">', unsafe_allow_html=True)
         st.header("📤 Upload Your Invoice")
-        uploaded_file = st.file_uploader("Upload an invoice (PDF, XML, JSON)", type=["pdf", "xml", "json"])
+        uploaded_file = st.file_uploader("Upload an invoice (PDF, XML, JSON, CSV)", type=["pdf", "xml", "json", "csv"])
         st.markdown('</div>', unsafe_allow_html=True)
         return uploaded_file
 

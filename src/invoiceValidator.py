@@ -1,6 +1,8 @@
 import json
 import pdfplumber
 import xml.etree.ElementTree as ET
+import pandas as pd
+from io import StringIO
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ load_dotenv()
 
 class InvoiceExtractor:
     """Handles validation and information extraction of invoices"""
+    
     def __init__(self):
         self.llm = ChatOpenAI(model="gpt-4o")
 
@@ -36,6 +39,12 @@ class InvoiceExtractor:
         data = json.load(file)
         return json.dumps(data)
 
+    def extract_text_from_csv(self, file):
+        """Extract text from a CSV file (file is a BytesIO object)."""
+        file.seek(0)  # Reset file pointer
+        df = pd.read_csv(file)
+        return df.to_string(index=False)  # Convert DataFrame to a readable string
+
     def extract_text(self, uploaded_file, file_type):
         """Extract text based on file type without saving."""
         if file_type == "pdf":
@@ -44,6 +53,8 @@ class InvoiceExtractor:
             return self.extract_text_from_xml(uploaded_file)
         elif file_type == "json":
             return self.extract_text_from_json(uploaded_file)
+        elif file_type == "csv":
+            return self.extract_text_from_csv(uploaded_file)
         else:
             raise ValueError("Unsupported file format")
 
