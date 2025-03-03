@@ -31,9 +31,9 @@ class Prompts:
 
         - Invoice number
         - Customer details (name, contact, address)
-        - Date
+        - Date 
         - Total amount
-        - Items (if specified, extract name, price, quantity, and subtotal; ensure the price is formatted right, if currency is present, include it, if decimal is missing, add it) 
+        - Items (if specified, extract name, price, quantity, and subtotal; ensure the price is formatted right, if currency is present, include it, if decimal is missing, add it; ensure to extract everything) 
         - Supplier
         - Payment method
         - Currency (determine based on prices in the invoice, e.g., if "$100" appears, currency is USD)

@@ -1,12 +1,17 @@
 .styled-box {
-    background-color: #f7f7f7;  /* Light grey background */
+    background-color: #f7f7f7;  
     padding: 20px;
     border-radius: 10px;
     box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
 }
 .upload-box {
-    background-color: #eaf2ff;  /* Light blue background */
+    background-color: #eaf2ff;  
     padding: 20px;
     border-radius: 10px;
     box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+}
+.divider {
+    border-top: 2px solid #ccc;
+    margin-top: 10px;
+    margin-bottom: 10px;
 }
