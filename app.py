@@ -11,7 +11,7 @@ class InvoiceApp:
 
     def setup_page(self):
         """Setup Streamlit page configurations and load styles."""
-        st.set_page_config(layout="wide", page_title="Invoice Extractor")
+        st.set_page_config(layout="wide", page_title="Invoice Details Extractor")
         self.load_css()
         st.title("📄 Invoice Extractor")
 
