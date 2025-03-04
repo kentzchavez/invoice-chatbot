@@ -1,3 +1,5 @@
 .env
 /samples
 /__pycache__
+invoices.db
+appdbtest.py

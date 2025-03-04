@@ -6,7 +6,7 @@ class AppFields:
 
     def __init__(self):
         self.invoice_keys = ["invoice_number", "date", "invoice_due_date", "supplier"]
-        self.customer_keys = ["customer_name", "customer_contact", "customer_address"]
+        self.customer_keys = ["customer_name", "customer_contact_number", "customer_contact_email", "customer_address"]
         self.transaction_keys = ["total_amount", "payment_method", "currency", "due_date"]
 
     def divider(self):
