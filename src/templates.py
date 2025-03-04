@@ -17,8 +17,6 @@ class Invoice(BaseModel):
     total_amount: Optional[str] = Field(None, description="The total amount on the invoice")
     items: Optional[list[ItemDetails]] = Field(None, description="List of items in the invoice with name, price, and quantity if available")
     supplier: Optional[str] = Field(None, description="The supplier of the invoice")
-    
-    payment_method: Optional[str] = Field(None, description="The payment method used")
     currency: Optional[str] = Field(None, description="The currency of the invoice")
     due_date: Optional[str] = Field(None, description="The due date of the invoice")
 
@@ -29,7 +27,7 @@ class Prompts:
     def extract_invoice_details(text: str):
         """Prompt template for extracting invoice details."""
         return f"""
-        Extract the following invoice details from the provided text. If a detail is missing, return an empty field, do not make up any information.
+        Extract the following invoice details from the provided text. If a detail is missing, never put anything, leave it empty, do not make up any information.
 
         - Invoice number
         - Customer details (name, contact, address)

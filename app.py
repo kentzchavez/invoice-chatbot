@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 from src.invoice_Validator import InvoiceExtractor
 from src.st_Fields import AppFields
-from src.invoice_Saver import InvoiceSaver
 from src.invoice_dbManager import InvoiceDB 
-
+import io
 class InvoiceApp:
     def __init__(self):
         self.extractor = InvoiceExtractor()
@@ -18,7 +17,7 @@ class InvoiceApp:
         """Setup Streamlit page configurations and load styles."""
         st.set_page_config(layout="wide", page_title="Invoice Extractor")
         self.load_css()
-        st.title("📄 Invoice Extractor")
+        st.title("📄 Invoice Details Extractor")
 
     def load_css(self):
         """Load external CSS file for styling."""
@@ -31,9 +30,9 @@ class InvoiceApp:
 
     def left_section(self):
         """Handles invoice upload and extraction."""
-        with st.container():
-            st.header("📤 Upload Your Invoice")
-            uploaded_file = st.file_uploader("Upload an invoice", type=["pdf", "xml", "json", "csv"])
+        with st.container(key="main-left-col"):
+            st.subheader("📤 Upload an Invoice")
+            uploaded_file = st.file_uploader("File Uploader", type=["pdf", "xml", "json", "csv"])
 
             if uploaded_file:
                 file_type = uploaded_file.name.split(".")[-1].lower()
@@ -45,46 +44,59 @@ class InvoiceApp:
                 present_values = {key: value for key, value in invoice_data.items() if value is not None}
                 missing_values = {key: "Missing" for key, value in invoice_data.items() if value is None}
 
-                st.subheader("📌 Extracted Invoice Details")
-                self.st_fields.divider()
-                self.st_fields.show_fields(present_values, missing_values)
+                with st.container(key="invoice-info"):
+                    st.subheader("📌 Extracted Invoice Details")
+                    self.st_fields.divider()
+                    self.st_fields.show_fields(present_values, missing_values)
 
-                # Save invoice to database
-                self.db.save_invoice(present_values)
+                    try:
+                        self.db.save_invoice(present_values)
+                        st.success("Invoice saved successfully!")
+                    except ValueError as e:
+                        st.error(str(e))  # Display duplicate invoice error
 
     def right_section(self):
         """Displays the table with extracted invoice details from SQLite database."""
-        col1, spacer, col2 = st.columns([1, 3, 0.5])
-        
-        with col1:
-            st.header("Your Invoices")
+        with st.container(key="main-right-col"):  # No extra <div> needed
+            col1, spacer, col2 = st.columns([3, 1, 0.5])
+            
+            with col1:
+                st.subheader("Your Invoices")
 
-        with col2:
-            st.button("Test", key="save")
+            invoices = self.db.get_all_invoices()  # Fetch invoices from SQLite
 
-        invoices = self.db.get_all_invoices()  # Fetch invoices from SQLite
+            if invoices:
+                formatted_invoices = []
+                for invoice in invoices:
+                    formatted_invoice = {}
+                    for key, value in invoice.items():
+                        if isinstance(value, list):  
+                            formatted_invoice[key] = ", ".join(map(str, value))  # Convert list to string
+                        elif isinstance(value, dict):  
+                            formatted_invoice[key] = ", ".join(f"{k}: {v}" for k, v in value.items())  # Convert dict to string
+                        else:
+                            formatted_invoice[key] = value
+                    formatted_invoices.append(formatted_invoice)
 
-        if invoices:
-            formatted_invoices = []
-            for invoice in invoices:
-                formatted_invoice = {}
-                for key, value in invoice.items():
-                    if isinstance(value, list):  
-                        formatted_invoice[key] = ", ".join(map(str, value))  # Convert list to string
-                    elif isinstance(value, dict):  
-                        formatted_invoice[key] = ", ".join(f"{k}: {v}" for k, v in value.items())  # Convert dict to string
-                    else:
-                        formatted_invoice[key] = value
-                formatted_invoices.append(formatted_invoice)
+                df = pd.DataFrame(formatted_invoices)
 
-            df = pd.DataFrame(formatted_invoices)
+                # Display table with full width
+                st.dataframe(df, use_container_width=True)
 
-            # Display table with full width
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("No invoices uploaded yet. Upload an invoice to see the extracted data.")
+                # Save button: Generate CSV in memory and download it immediately
+                with col2:
+                    csv_buffer = io.StringIO()
+                    df.to_csv(csv_buffer, index=False)
+                    csv_data = csv_buffer.getvalue()
 
-
+                    st.download_button(
+                        label="Save as CSV",
+                        data=csv_data,
+                        file_name="invoices.csv",
+                        mime="text/csv"
+                    )
+            else:
+                st.info("No invoices uploaded yet. Upload an invoice to see the extracted data.")
 
     def run(self):
         """Run the Streamlit app with a 2-column layout."""
