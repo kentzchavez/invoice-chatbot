@@ -5,7 +5,7 @@ class AppFields:
     """Determines different fields of showing invoice details for modularity"""
 
     def __init__(self):
-        self.invoice_keys = ["invoice_number", "date", "invoice_due_date", "supplier"]
+        self.invoice_keys = ["po_number", "invoice_number", "date", "invoice_due_date", "supplier"]
         self.customer_keys = ["customer_name", "customer_contact_number", "customer_contact_email", "customer_address"]
         self.transaction_keys = ["total_amount", "currency", "due_date"]
 
@@ -15,7 +15,7 @@ class AppFields:
     def show_invoice_info(self, present_values):
         """Show the invoice information."""
         if any(key in present_values for key in self.invoice_keys):
-            st.markdown("### 📄 Invoice Information")
+            st.markdown("### Invoice Information")
             for key in self.invoice_keys:
                 if key in present_values:
                     st.write(f"**{key.replace('_', ' ').title()}**: {present_values[key]}")
@@ -24,7 +24,7 @@ class AppFields:
     def show_customer_info(self, present_values):
         """Show the customer info"""
         if any(key in present_values for key in self.customer_keys):
-            st.markdown("### 👤 Customer Information")
+            st.markdown("### Customer Information")
             for key in self.customer_keys:
                 if key in present_values:
                     st.write(f"**{key.replace('_', ' ').title()}**: {present_values[key]}")
@@ -33,7 +33,7 @@ class AppFields:
     def show_transaction_info(self, present_values):
         """Show the transaction info"""
         if any(key in present_values for key in self.transaction_keys):
-            st.markdown("### 💳 Payment & Transaction Details")
+            st.markdown("### Payment & Transaction Details")
             for key in self.transaction_keys:
                 if key in present_values:
                     st.write(f"**{key.replace('_', ' ').title()}**: {present_values[key]}")
@@ -42,7 +42,7 @@ class AppFields:
     def show_items(self, present_values):
         """Shows the items in the invoice"""   
         if "items" in present_values and isinstance(present_values["items"], list):
-            st.subheader("📦 Items")
+            st.subheader("Items")
         if present_values["items"]:
             items_df = pd.DataFrame(present_values["items"])
 
@@ -56,7 +56,7 @@ class AppFields:
     def show_missing_fields(self, missing_values):
         """Show the missing fields"""
         if missing_values:
-            with st.expander("🚨 Show Missing Details"):
+            with st.expander("Show Missing Details"):
                 for key in missing_values:
                     st.write(f"**{key.replace('_', ' ').title()}**: NaN")
 
