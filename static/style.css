@@ -35,14 +35,6 @@
     font-weight: bold;
     transition: background-color 0.3s ease-in-out; 
 }
-.st-key-save button:hover {
-    background-color: #275d3b;
-    color: white;
-}
-.st-key-save button:active {
-    background-color: #16301f; 
-    color: white;
-}
 .st-key-main-left-col {
     background-color: #171c27;
     border-radius: 10px;

@@ -1,10 +1,13 @@
 import sqlite3
 import json
 import os
+import faiss
+import numpy as np
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_chroma import Chroma
 from langchain.schema import Document
 from dotenv import load_dotenv
+from sklearn.feature_extraction.text import TfidfVectorizer  # For re-ranking
+from sklearn.metrics.pairwise import cosine_similarity  # For re-ranking
 
 load_dotenv()
 
@@ -13,7 +16,9 @@ class InvoiceVectorStore:
         self.db_path = db_path
         self.vector_db_path = vector_db_path
         self.embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-        self.vector_store = Chroma(persist_directory=self.vector_db_path, embedding_function=self.embeddings)
+        self.index = None
+        self.metadata = []
+        self.load_or_initialize_faiss_index()
 
     def connect(self):
         return sqlite3.connect(self.db_path, check_same_thread=False)
@@ -78,16 +83,43 @@ class InvoiceVectorStore:
         """.strip()
 
     def get_existing_invoice_ids(self):
-        """Fetch already stored invoice numbers from ChromaDB to prevent duplicates."""
-        try:
-            stored_data = self.vector_store.get()
-            return {metadata["invoice_number"] for metadata in stored_data["metadatas"] if "invoice_number" in metadata}
-        except Exception as e:
-            print(f"Error fetching existing invoices from ChromaDB: {e}")
-            return set()
+        """Fetch already stored invoice numbers from FAISS to prevent duplicates."""
+        return {metadata["invoice_number"] for metadata in self.metadata if "invoice_number" in metadata}
+
+    def load_or_initialize_faiss_index(self):
+        """Load or initialize the FAISS index."""
+        index_file = os.path.join(self.vector_db_path, "faiss_index.index")
+        metadata_file = os.path.join(self.vector_db_path, "metadata.json")
+
+        if os.path.exists(index_file) and os.path.exists(metadata_file):
+            self.index = faiss.read_index(index_file)
+            with open(metadata_file, "r") as f:
+                self.metadata = json.load(f)
+            print("Loaded existing FAISS index and metadata.")
+        else:
+            self.index = None
+            self.metadata = []
+            print("Initializing new FAISS index.")
+
+    def save_faiss_index(self):
+        """Save the FAISS index and metadata to disk."""
+        os.makedirs(self.vector_db_path, exist_ok=True)
+        index_file = os.path.join(self.vector_db_path, "faiss_index.index")
+        metadata_file = os.path.join(self.vector_db_path, "metadata.json")
+
+        if self.index:
+            faiss.write_index(self.index, index_file)
+        with open(metadata_file, "w") as f:
+            json.dump(self.metadata, f)
+        print("Saved FAISS index and metadata.")
+
+    def normalize_embeddings(self, embeddings):
+        """Normalize embeddings to unit length for cosine similarity."""
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        return embeddings / norms
 
     def create_vector_store(self):
-        """Convert structured invoice data into text embeddings and store in ChromaDB without duplicates."""
+        """Convert structured invoice data into text embeddings and store in FAISS without duplicates."""
         invoices = self.get_all_invoices()
         existing_invoice_ids = self.get_existing_invoice_ids()
         documents = []
@@ -100,12 +132,24 @@ class InvoiceVectorStore:
             text_content = self.format_invoice_text(invoice)
             documents.append(Document(
                 page_content=text_content,
-                metadata={"po_number": invoice["po_number"], "invoice_number": invoice["invoice_number"]}
+                metadata=invoice  # Store the full invoice data in metadata
             ))
 
         if documents:
-            self.vector_store.add_documents(documents)
-            print(f"Added {len(documents)} new invoices to ChromaDB.")
+            texts = [doc.page_content for doc in documents]
+            embeddings = self.embeddings.embed_documents(texts)
+            embeddings = np.array(embeddings).astype('float32')
+            embeddings = self.normalize_embeddings(embeddings)  # Normalize embeddings
+
+            if self.index is None:
+                self.index = faiss.IndexFlatIP(embeddings.shape[1])  # Use Inner Product (cosine similarity)
+                self.index.add(embeddings)
+            else:
+                self.index.add(embeddings)
+
+            self.metadata.extend([doc.metadata for doc in documents])
+            self.save_faiss_index()
+            print(f"Added {len(documents)} new invoices to FAISS.")
         else:
             print("No new invoices to add.")
 
@@ -114,38 +158,60 @@ class InvoiceVectorStore:
         existing_invoice_ids = self.get_existing_invoice_ids()
 
         if invoice_data["invoice_number"] in existing_invoice_ids:
-            print(f"Invoice {invoice_data['invoice_number']} already exists in ChromaDB. Skipping.")
+            print(f"Invoice {invoice_data['invoice_number']} already exists in FAISS. Skipping.")
             return
 
         text_content = self.format_invoice_text(invoice_data)
+        embedding = self.embeddings.embed_documents([text_content])
+        embedding = np.array(embedding).astype('float32')
+        embedding = self.normalize_embeddings(embedding)  # Normalize embedding
 
-        document = Document(
-            page_content=text_content,
-            metadata={"po_number": invoice_data["po_number"], "invoice_number": invoice_data["invoice_number"]}
-        )
+        if self.index is None:
+            self.index = faiss.IndexFlatIP(embedding.shape[1])  # Use Inner Product (cosine similarity)
+        self.index.add(embedding)
 
-        self.vector_store.add_documents([document])
-        print(f"Invoice {invoice_data['invoice_number']} embedded and stored in vector DB.")
+        self.metadata.append({"po_number": invoice_data["po_number"], "invoice_number": invoice_data["invoice_number"]})
+        self.save_faiss_index()
+        print(f"Invoice {invoice_data['invoice_number']} embedded and stored in FAISS.")
 
-    def query_similar_invoices(self, query_text, k=3):
-        """Query the vector store for similar invoices."""
-        results = self.vector_store.similarity_search(query_text, k=k)
-        return [res.page_content for res in results]
+    def query_similar_invoices(self, query_text, k=5):
+        """Query the FAISS index for similar invoices and re-rank using TF-IDF and cosine similarity."""
+        # Step 1: Retrieve top-k results using FAISS
+        query_embedding = self.embeddings.embed_documents([query_text])
+        query_embedding = np.array(query_embedding).astype('float32')
+        query_embedding = self.normalize_embeddings(query_embedding)  # Normalize query embedding
+
+        distances, indices = self.index.search(query_embedding, k)
+        initial_results = []
+
+        for idx in indices[0]:
+            if idx < len(self.metadata):
+                invoice_data = self.metadata[idx]
+                initial_results.append((self.format_invoice_text(invoice_data), invoice_data))
+
+        # Step 2: Re-rank using TF-IDF and cosine similarity
+        if initial_results:
+            # Extract text content from initial results
+            texts = [result[0] for result in initial_results]
+            # Compute TF-IDF vectors
+            vectorizer = TfidfVectorizer()
+            tfidf_matrix = vectorizer.fit_transform([query_text] + texts)
+            # Compute cosine similarity between query and results
+            cosine_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+            # Combine results with their similarity scores
+            scored_results = list(zip(initial_results, cosine_similarities))
+            # Sort by similarity score (higher is better)
+            scored_results.sort(key=lambda x: x[1], reverse=True)
+            # Extract the re-ranked results
+            re_ranked_results = [result[0][0] for result in scored_results]
+            return re_ranked_results
+        else:
+            return []
 
     def initialize_vector_store(self):
         """Check if the vector store exists, if not, initialize it."""
-        if os.path.exists(os.path.join(self.vector_db_path, "chroma-collections.parquet")):
-            print("Vector store already initialized. Skipping re-embedding.")
+        if os.path.exists(os.path.join(self.vector_db_path, "faiss_index.index")):
+            print("FAISS index already initialized. Skipping re-embedding.")
         else:
-            print("Initializing vector store for the first time...")
+            print("Initializing FAISS index for the first time...")
             self.create_vector_store()
-
-if __name__ == "__main__":
-    vector_handler = InvoiceVectorStore()
-    vector_handler.create_vector_store()
-
-    query = "Find invoices related to John Doe"
-    results = vector_handler.query_similar_invoices(query)
-    print("\nSimilar Invoices:")
-    for res in results:
-        print(res)

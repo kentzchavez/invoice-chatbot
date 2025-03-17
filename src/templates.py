@@ -45,16 +45,91 @@ class Prompts:
         """
     
     @staticmethod
-    def get_response_prompt(query: str, data: str):
+    def get_RAG_response_prompt(query: str, data: str, chat_history: str):
         """Prompt template for getting a response."""
         return f"""
-        Given the following query, provide the appropriate response according to the data provided. Answer relevantly and be straightforward.
-        Ensure to format your answer properly. Do not include missing data in your response.
+        Given the provided query and data, respond in a relevant and straightforward manner. Follow these guidelines:
+
+        Focus on relevance: Address the query directly using the data provided. If the requested information (e.g., an invoice) is unavailable, simply state that it is unavailable without mentioning missing data or limitations.
+        Formatting: Format your response clearly and professionally.
+        Tabularize: Present the 'items' field in a well-structured table, if the query asked to show the items.
+        Omit missing data: Do not include any fields or information that are not available in the data, inform the user separately after showing the available data about the missing ones.
+        Use Chat History: If context is not clear, check the chat history provided.
+
+        Query: {query}
+        Data: {data}
+
+        Chat History: {chat_history}
+        """
+
+    @staticmethod
+    def classify_query_prompt(query: str, chat_history: str):
+        """Prompt template for classifying user query"""
+        return f"""
+        Task:
+        Given the user query and chat history, classify the user query into one of the predefined categories based on the intent and context. Use the chat history to determine the appropriate classification.
+
+        Classifications:
+        Invoice Inquiry (II): Use this classification if the user is asking for details about a specific invoice and the required data is already available in the chat history.
+        Example: "Can you tell me the total amount for invoice #123?" (assuming the data is in the chat history).
+
+        RAG Invoice Inquiry (RAG-II): Use this classification if the user is asking for details about a specific invoice but the required data is not in the chat history and needs to be retrieved from an external database or system.
+        Example: "What is the due date for invoice #456?" (assuming the data is not in the chat history).
+
+        Email Drafting (ED): Use this classification if the user is requesting assistance in drafting an email related to invoices.
+        Example: "Can you help me write an email to follow up on invoice #789?"
+
+        Guidelines:
+        - Carefully analyze the user query and chat history to determine the intent and context.
+        - Focus on whether the required data is already in the chat history or needs to be retrieved externally.
+        - Only return the classification code (e.g., II, RAG-II, ED) as the output. Do not include any additional text, explanations, or notes.
+
+        Input:
 
         Query: {query}
 
-        Data: {data}
+        Chat History: {chat_history}
         """
+    
+    @staticmethod
+    def get_invoice_response_prompt(query: str, chat_history: str):
+        """Prompt template for getting invoice details."""
+        return f"""
+        Answer the user's query properly based on the given details in the chat history.
+
+        Focus on relevance: Address the query directly using the data provided. If the requested information (e.g., an invoice) is unavailable, simply state that it is unavailable without mentioning missing data or limitations.
+        Formatting: Format your response clearly and professionally.
+        Tabularize: Present the 'items' field in a well-structured table, if the query asked to show the items.
+        Omit missing data: Do not include any fields or information that are not available in the data, inform the user separately after showing the available data about the missing ones.
+        Use Chat History: If context is not clear, check the chat history provided.
+
+        Query: {query}
+
+        chat history: {chat_history}
+        """
+    
+    def draft_email_prompt(query: str, chat_history: str):
+        """Prompt template for drafting an email."""
+        return f"""
+        Draft a professional, polite, and concise email addressing the user query. Use the chat history for context.
+
+        Purpose:
+        Resolve invoice discrepancies (e.g., missing values).
+        Follow up with customers on invoices or payments.
+        Provide clarification or additional details.
+
+        Guidelines:
+        Tone: Friendly, professional, and polite.
+        Structure:
+        - Subject line: Clear and concise.
+        - Body: Acknowledge query, provide info/next steps, offer assistance.
+        - Closing: Polite sign-off (e.g., "Best regards").
+        - Length: Short and to the point.
+
+        Query: {query}
+
+        Chat History: {chat_history}"""
+    
 
 class DataPreparer:
     """Handles the preparation of structured data for invoices and purchase orders."""

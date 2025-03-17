@@ -24,7 +24,7 @@ class InvoiceApp:
         """Setup Streamlit page configurations and load styles."""
         st.set_page_config(layout="wide", page_title="Invoice Extractor")
         self.load_css()
-        st.title("Invoice Details Extractor")
+        st.title("Invoice Details")
 
     def load_css(self):
         """Load external CSS file for styling."""
@@ -125,28 +125,29 @@ class InvoiceApp:
         """Displays the table with extracted invoice details from SQLite database."""
         df = pd.DataFrame()
         with st.container(key="main-right-col"):  # No extra <div> needed
-            col1, spacer, col2 = st.columns([3, 1, 0.5])
-            with col1:
-                st.subheader("Your Invoices")
+            with st.expander("View Invoices"):
+                col1, spacer, col2 = st.columns([3, 1, 0.5])
+                with col1:
+                    st.subheader("Your Invoices")
 
-            invoices = self.invoice_db.get_all_invoices()  # Fetch invoices from SQLite
-            if invoices:
-                df = self.load_invoice_table(invoices)
+                invoices = self.invoice_db.get_all_invoices()  # Fetch invoices from SQLite
+                if invoices:
+                    df = self.load_invoice_table(invoices)
 
-                # Save button: Generate CSV in memory and download it immediately
-                with col2:
-                    csv_buffer = io.StringIO()
-                    df.to_csv(csv_buffer, index=False)
-                    csv_data = csv_buffer.getvalue()
+                    # Save button: Generate CSV in memory and download it immediately
+                    with col2:
+                        csv_buffer = io.StringIO()
+                        df.to_csv(csv_buffer, index=False)
+                        csv_data = csv_buffer.getvalue()
 
-                    st.download_button(
-                        label="Save as CSV",
-                        data=csv_data,
-                        file_name="invoices.csv",
-                        mime="text/csv"
-                    )
-            else:
-                st.info("No invoices uploaded yet. Upload an invoice to see the extracted data.")
+                        st.download_button(
+                            label="Save as CSV",
+                            data=csv_data,
+                            file_name="invoices.csv",
+                            mime="text/csv"
+                        )
+                else:
+                    st.info("No invoices uploaded yet. Upload an invoice to see the extracted data.")
     
         # Chatbot
         self.chatbot.chatbot_ui()
